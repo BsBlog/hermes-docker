@@ -293,7 +293,6 @@ jobs:
     needs:
       - Build-and-Push
       - Merge-and-Push
-      - Delete-Old-Images
       - Summary-No-Push
     if: always()
     steps:
