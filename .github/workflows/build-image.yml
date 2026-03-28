@@ -23,7 +23,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/openclaw-docker
-  CACHE_SCOPE_PREFIX: openclaw-build
 
 jobs:
   Prepare:
@@ -67,12 +66,13 @@ jobs:
           echo "openclaw_version=$OPENCLAW_VERSION" >> $GITHUB_OUTPUT
           echo "should_push=$SHOULD_PUSH" >> $GITHUB_OUTPUT
 
-  Detect-Platforms:
-    name: Detect Buildable Platform ${{ matrix.platform }}
+  Build-and-Push:
+    name: Build and Push ${{ matrix.platform }}
     needs: Prepare
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -120,142 +120,51 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@master
 
-      - name: Probe platform and warm cache
-        id: detect_build
-        continue-on-error: true
-        env:
-          DOCKER_BUILD_RECORD_UPLOAD: false
-          DOCKER_BUILD_SUMMARY: false
+      - name: Login to Registry
+        if: needs.Prepare.outputs.should_push == 'true'
+        uses: docker/login-action@master
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Build and push
+        if: needs.Prepare.outputs.should_push == 'true'
+        uses: docker/build-push-action@master
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:${{ github.sha }}-${{ matrix.tag_suffix }}
+          build-args: |
+            OPENCLAW_VERSION=${{ needs.Prepare.outputs.openclaw_version }}
+
+      - name: Build without push
+        if: needs.Prepare.outputs.should_push != 'true'
         uses: docker/build-push-action@master
         with:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           push: false
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE_PREFIX }}-${{ matrix.tag_suffix }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE_PREFIX }}-${{ matrix.tag_suffix }}
           build-args: |
             OPENCLAW_VERSION=${{ needs.Prepare.outputs.openclaw_version }}
 
-      - name: Record platform result
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p .platform-success
-          STATUS=failed
-          if [ "${{ steps.detect_build.outcome }}" = "success" ]; then
-            STATUS=success
-          fi
-
-          cat > ".platform-success/${{ matrix.tag_suffix }}.env" <<EOF
-          PLATFORM=${{ matrix.platform }}
-          TAG_SUFFIX=${{ matrix.tag_suffix }}
-          STATUS=${STATUS}
-          CACHE_FROM=type=gha,scope=${{ env.CACHE_SCOPE_PREFIX }}-${{ matrix.tag_suffix }}
-          EOF
-
-      - name: Upload platform marker
-        if: always()
-        uses: actions/upload-artifact@main
-        with:
-          name: platform-${{ matrix.tag_suffix }}
-          path: .platform-success/${{ matrix.tag_suffix }}.env
-          if-no-files-found: error
-
-      - name: Log skipped platform
-        if: steps.detect_build.outcome != 'success'
-        run: echo "Skipping ${{ matrix.platform }} because the detection build failed."
-
-  Collect-Platforms:
-    name: Collect Successful Platforms
+  Merge-and-Push:
+    name: Merge architectures and push latest
     needs:
       - Prepare
-      - Detect-Platforms
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      successful_platforms: ${{ steps.collect.outputs.successful_platforms }}
-      successful_tags: ${{ steps.collect.outputs.successful_tags }}
-      cache_from: ${{ steps.collect.outputs.cache_from }}
-    steps:
-      - name: Download platform markers
-        uses: actions/download-artifact@main
-        with:
-          pattern: platform-*
-          path: .platform-success
-          merge-multiple: true
-
-      - name: Collect successful platform outputs
-        id: collect
-        shell: bash
-        run: |
-          ORDER=(amd64 i386 arm64 armv7 armv6 ppc64le riscv64 s390x)
-          PLATFORMS=()
-          TAGS=()
-          CACHE_FROM=()
-
-          for tag in "${ORDER[@]}"; do
-            FILE=".platform-success/${tag}.env"
-            if [ ! -f "$FILE" ]; then
-              continue
-            fi
-
-            source "$FILE"
-            if [ "$STATUS" != "success" ]; then
-              continue
-            fi
-
-            PLATFORMS+=("$PLATFORM")
-            TAGS+=("$TAG_SUFFIX")
-            CACHE_FROM+=("$CACHE_FROM")
-          done
-
-          PLATFORM_CSV=$(IFS=,; echo "${PLATFORMS[*]}")
-          TAG_CSV=$(IFS=,; echo "${TAGS[*]}")
-
-          echo "successful_platforms=$PLATFORM_CSV" >> $GITHUB_OUTPUT
-          echo "successful_tags=$TAG_CSV" >> $GITHUB_OUTPUT
-
-          {
-            echo "cache_from<<EOF"
-            printf '%s\n' "${CACHE_FROM[@]}"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
-          if [ -z "$PLATFORM_CSV" ] && [ "${{ needs.Prepare.outputs.should_push }}" = "true" ]; then
-            echo "No successful platforms detected for a push run."
-            exit 1
-          fi
-
-  Build-and-Push:
-    name: Build and Push Multi-Arch Image
-    needs:
-      - Prepare
-      - Collect-Platforms
+      - Build-and-Push
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    if: needs.Prepare.outputs.should_push == 'true' && needs.Collect-Platforms.outputs.successful_platforms != ''
+    if: always() && needs.Prepare.outputs.should_push == 'true'
     steps:
-      - name: Free Disk-Space
-        run: |
-          df -h
-          sudo apt-get clean
-          docker system prune -a -f
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
-          df -h
-
       - name: Checkout
         uses: actions/checkout@main
-
-      - name: Set up Docker QEMU
-        uses: docker/setup-qemu-action@master
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@master
 
       - name: Login to Registry
         uses: docker/login-action@master
@@ -264,43 +173,115 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
-      - name: Build and push multi-platform image
-        uses: docker/build-push-action@master
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: ${{ needs.Collect-Platforms.outputs.successful_platforms }}
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:latest
-            ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:${{ github.sha }}
-          cache-from: ${{ needs.Collect-Platforms.outputs.cache_from }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE_PREFIX }}-release
-          build-args: |
-            OPENCLAW_VERSION=${{ needs.Prepare.outputs.openclaw_version }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@master
+
+      - name: Create and push manifest list
+        id: push
+        run: |
+          TAGS=("amd64" "i386" "arm64" "armv7" "armv6" "ppc64le" "riscv64" "s390x")
+          SUCCESSFUL_IMAGES=""
+          SUCCESSFUL_TAGS=""
+          for tag in "${TAGS[@]}"; do
+            IMAGE_REF="${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:${{ github.sha }}-$tag"
+            echo "Checking for image: $IMAGE_REF"
+            if docker buildx imagetools inspect "$IMAGE_REF" > /dev/null 2>&1; then
+              echo "Image found. Adding to merge list."
+              SUCCESSFUL_IMAGES="$SUCCESSFUL_IMAGES $IMAGE_REF"
+              SUCCESSFUL_TAGS="$SUCCESSFUL_TAGS $tag"
+            else
+              echo "Image not found for tag $tag. It may have failed to build."
+            fi
+          done
+
+          echo "SUCCESSFUL_IMAGES=$SUCCESSFUL_IMAGES" >> $GITHUB_ENV
+          echo "SUCCESSFUL_TAGS=$SUCCESSFUL_TAGS" >> $GITHUB_ENV
+
+          if [ -n "$SUCCESSFUL_IMAGES" ]; then
+            echo "Merging the following images into manifest tags: $SUCCESSFUL_IMAGES"
+            docker buildx imagetools create \
+              --tag ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:latest \
+              --tag ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:${{ github.sha }} \
+              $SUCCESSFUL_IMAGES
+          else
+            echo "No successful images found to merge."
+            exit 1
+          fi
+
+      - name: Delete Temporary Images
+        run: |
+          if [ -n "$SUCCESSFUL_IMAGES" ]; then
+            echo "Deleting temporary images: $SUCCESSFUL_IMAGES"
+
+            for image in $SUCCESSFUL_IMAGES; do
+              echo "Processing image: $image"
+
+              tag=$(echo "$image" | cut -d':' -f2)
+              echo "Extracting tag: $tag from image: $image"
+
+              echo "Deleting tag: $tag via API..."
+
+              VERSION_RESPONSE=$(curl -s \
+                -H "Authorization: token ${{ github.token }}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/users/${{ github.repository_owner }}/packages/container/${{ needs.Prepare.outputs.d_image_name }}/versions?per_page=100")
+
+              if [ $? -eq 0 ]; then
+                VERSION_ID=$(echo "$VERSION_RESPONSE" | jq -r --arg tag "$tag" '.[] | select(((.metadata.container.tags // []) | index($tag)) != null) | .id')
+
+                if [ "$VERSION_ID" != "null" ] && [ -n "$VERSION_ID" ]; then
+                  echo "Found version ID: $VERSION_ID for tag: $tag"
+
+                  DELETE_RESPONSE=$(curl -s -X DELETE \
+                    -H "Authorization: token ${{ github.token }}" \
+                    -H "Accept: application/vnd.github+json" \
+                    "https://api.github.com/users/${{ github.repository_owner }}/packages/container/${{ needs.Prepare.outputs.d_image_name }}/versions/$VERSION_ID")
+
+                  if [ $? -eq 0 ]; then
+                    echo "Successfully deleted temporary image: $image (tag: $tag)"
+                  else
+                    echo "Failed to delete image: $image (tag: $tag). Response: $DELETE_RESPONSE"
+                  fi
+                else
+                  echo "Could not find version ID for tag: $tag"
+                fi
+              else
+                echo "Failed to get versions for image: $image. Response: $VERSION_RESPONSE"
+              fi
+            done
+            
+            echo "Temporary images cleanup completed"
+          else
+            echo "No temporary images to delete (SUCCESSFUL_IMAGES is empty)"
+          fi
 
       - name: Generate build summary
         run: |
+          JOINED_TAGS=$(echo "$SUCCESSFUL_TAGS" | xargs)
+          JOINED_TAGS=${JOINED_TAGS// /, }
+          if [ -z "$JOINED_TAGS" ]; then
+            JOINED_TAGS="none"
+          fi
+
           echo "### OpenClaw Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**OpenClaw Version:** \`${{ needs.Prepare.outputs.openclaw_version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Successful Platforms:** \`${{ needs.Collect-Platforms.outputs.successful_tags }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Successful Platforms:** \`${JOINED_TAGS}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** \`${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Manifest Tags:** \`latest\`, \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Cache:** \`type=gha\`" >> $GITHUB_STEP_SUMMARY
 
   Delete-Old-Images:
     name: Delete old Docker images
     needs:
       - Prepare
-      - Build-and-Push
+      - Merge-and-Push
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    if: needs.Prepare.outputs.should_push == 'true' && needs.Build-and-Push.result == 'success'
+    if: needs.Prepare.outputs.should_push == 'true' && needs.Merge-and-Push.result == 'success'
     steps:
-      - name: Delete old package versions after successful push
+      - name: Delete old package versions
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PACKAGE_NAME: ${{ needs.Prepare.outputs.d_image_name }}
@@ -358,37 +339,28 @@ jobs:
     name: Summary Without Push
     needs:
       - Prepare
-      - Collect-Platforms
+      - Build-and-Push
     runs-on: ubuntu-latest
-    if: needs.Prepare.outputs.should_push != 'true'
+    if: always() && needs.Prepare.outputs.should_push != 'true'
     steps:
       - name: Generate build summary
         run: |
           echo "### OpenClaw Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**OpenClaw Version:** \`${{ needs.Prepare.outputs.openclaw_version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Detected Platforms:** \`${{ needs.Collect-Platforms.outputs.successful_tags }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Cache:** \`type=gha\`" >> $GITHUB_STEP_SUMMARY
-          echo "Manual build completed without pushing an image to GHCR." >> $GITHUB_STEP_SUMMARY
+          echo "**Attempted Platforms:** \`amd64, arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "Manual build completed without pushing images to GHCR." >> $GITHUB_STEP_SUMMARY
 
   Finalize:
     name: Finalize Workflow
     runs-on: ubuntu-latest
     needs:
-      - Detect-Platforms
-      - Collect-Platforms
       - Build-and-Push
+      - Merge-and-Push
       - Delete-Old-Images
       - Summary-No-Push
     if: always()
     steps:
-
-      - name: Delete all cache
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh cache delete --all --succeed-on-no-caches -R ${{ github.repository }}
-
       - name: Delete old workflow runs
         uses: Mattraks/delete-workflow-runs@main
         with:
@@ -396,3 +368,4 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 0
           keep_minimum_runs: 0
+
