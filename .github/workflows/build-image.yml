@@ -103,14 +103,14 @@ jobs:
           #   tag_suffix: s390x
 
     steps:
-    - name: Free Disk-Space
-      continue-on-error: true
-      run: |
-        df -h || true
-        sudo apt-get clean || true
-        docker system prune -a -f || true
-        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
-        df -h || true
+      - name: Free Disk-Space
+        continue-on-error: true
+        run: |
+          df -h || true
+          sudo apt-get clean || true
+          docker system prune -a -f || true
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          df -h || true
 
       - name: Checkout
         uses: actions/checkout@main
