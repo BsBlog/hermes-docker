@@ -8,7 +8,7 @@ on:
 
 jobs:
   check-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: write
       packages: write
@@ -93,7 +93,7 @@ jobs:
 
   Finalize:
     name: Finalize Workflow
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: always()
     steps:
       - name: Delete old workflow runs

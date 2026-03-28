@@ -28,7 +28,7 @@ env:
 jobs:
   Prepare:
     name: Prepare Environment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
     outputs:
@@ -78,29 +78,29 @@ jobs:
       matrix:
         include:
           - platform: linux/amd64
-            runner: ubuntu-latest
+            runner: ubuntu-slim
             tag_suffix: amd64
-          - platform: linux/386
-            runner: ubuntu-latest
-            tag_suffix: i386
+          # - platform: linux/386
+          #   runner: ubuntu-slim
+          #   tag_suffix: i386
           - platform: linux/arm64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04-arm
             tag_suffix: arm64
-          - platform: linux/arm/v7
-            runner: ubuntu-latest
-            tag_suffix: armv7
-          - platform: linux/arm/v6
-            runner: ubuntu-latest
-            tag_suffix: armv6
-          - platform: linux/ppc64le
-            runner: ubuntu-latest
-            tag_suffix: ppc64le
-          - platform: linux/riscv64
-            runner: ubuntu-latest
-            tag_suffix: riscv64
-          - platform: linux/s390x
-            runner: ubuntu-latest
-            tag_suffix: s390x
+          # - platform: linux/arm/v7
+          #   runner: ubuntu-slim
+          #   tag_suffix: armv7
+          # - platform: linux/arm/v6
+          #   runner: ubuntu-slim
+          #   tag_suffix: armv6
+          # - platform: linux/ppc64le
+          #   runner: ubuntu-slim
+          #   tag_suffix: ppc64le
+          # - platform: linux/riscv64
+          #   runner: ubuntu-slim
+          #   tag_suffix: riscv64
+          # - platform: linux/s390x
+          #   runner: ubuntu-slim
+          #   tag_suffix: s390x
 
     steps:
       - name: Free Disk-Space
@@ -172,7 +172,7 @@ jobs:
     needs:
       - Prepare
       - Detect-Platforms
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
     outputs:
@@ -234,7 +234,7 @@ jobs:
     needs:
       - Prepare
       - Collect-Platforms
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       packages: write
@@ -294,7 +294,7 @@ jobs:
     needs:
       - Prepare
       - Build-and-Push
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       packages: write
@@ -359,7 +359,7 @@ jobs:
     needs:
       - Prepare
       - Collect-Platforms
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: needs.Prepare.outputs.should_push != 'true'
     steps:
       - name: Generate build summary
@@ -379,7 +379,7 @@ jobs:
       - Build-and-Push
       - Delete-Old-Images
       - Summary-No-Push
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: always()
     steps:
 
