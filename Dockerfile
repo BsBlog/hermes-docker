@@ -1,5 +1,10 @@
 FROM node:current-trixie-slim AS base
+
+RUN npm install -g npm@latest pnpm@latest
+
 FROM base AS build
+
+ENV CI=true
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
@@ -30,9 +35,6 @@ RUN mkdir -p /home/linuxbrew/.linuxbrew/Homebrew && \
     chmod -R g+rwX /home/linuxbrew/.linuxbrew
 
 WORKDIR /app
-
-ENV CI=true
-RUN npm install -g npm@latest pnpm@latest
 
 ARG OPENCLAW_VERSION=main
 RUN git clone --depth 1 --branch ${OPENCLAW_VERSION} https://github.com/openclaw/openclaw.git . && \
