@@ -28,8 +28,6 @@ jobs:
   Prepare:
     name: Prepare Environment
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       image_name: ${{ steps.prepare.outputs.image_name }}
       d_image_name: ${{ steps.prepare.outputs.d_image_name }}
@@ -70,9 +68,6 @@ jobs:
     name: Build and Push ${{ matrix.platform }}
     needs: Prepare
     runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -158,9 +153,6 @@ jobs:
       - Prepare
       - Build-and-Push
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     if: always() && needs.Prepare.outputs.should_push == 'true'
     steps:
       - name: Checkout
@@ -276,9 +268,6 @@ jobs:
       - Prepare
       - Merge-and-Push
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     if: needs.Prepare.outputs.should_push == 'true' && needs.Merge-and-Push.result == 'success'
     steps:
       - name: Delete old package versions
