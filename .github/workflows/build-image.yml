@@ -68,6 +68,7 @@ jobs:
     name: Build and Push ${{ matrix.platform }}
     needs: Prepare
     runs-on: ${{ matrix.runner }}
+    permissions: write-all
     strategy:
       fail-fast: false
       matrix:
@@ -153,6 +154,7 @@ jobs:
       - Prepare
       - Build-and-Push
     runs-on: ubuntu-latest
+    permissions: write-all
     if: always() && needs.Prepare.outputs.should_push == 'true'
     steps:
       - name: Checkout
@@ -268,6 +270,7 @@ jobs:
       - Prepare
       - Merge-and-Push
     runs-on: ubuntu-latest
+    permissions: write-all
     if: needs.Prepare.outputs.should_push == 'true' && needs.Merge-and-Push.result == 'success'
     steps:
       - name: Delete old package versions
