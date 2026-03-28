@@ -29,10 +29,10 @@ jobs:
     name: Prepare Environment
     runs-on: ubuntu-latest
     outputs:
-      image_name: ${{ steps.prepare.outputs.image_name }}
-      d_image_name: ${{ steps.prepare.outputs.d_image_name }}
-      openclaw_version: ${{ steps.prepare.outputs.openclaw_version }}
-      should_push: ${{ steps.prepare.outputs.should_push }}
+      image_name: ${{ steps.Prepare.outputs.image_name }}
+      d_image_name: ${{ steps.Prepare.outputs.d_image_name }}
+      openclaw_version: ${{ steps.Prepare.outputs.openclaw_version }}
+      should_push: ${{ steps.Prepare.outputs.should_push }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@main
@@ -64,11 +64,19 @@ jobs:
           echo "openclaw_version=$OPENCLAW_VERSION" >> $GITHUB_OUTPUT
           echo "should_push=$SHOULD_PUSH" >> $GITHUB_OUTPUT
 
+      - name: Delete old Docker images
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          curl -X DELETE \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/users/${{github.repository_owner}}/packages/container/${{steps.Prepare.outputs.d_image_name}}
+
   Build-and-Push:
     name: Build and Push ${{ matrix.platform }}
     needs: Prepare
     runs-on: ${{ matrix.runner }}
-    permissions: write-all
     strategy:
       fail-fast: false
       matrix:
@@ -154,7 +162,6 @@ jobs:
       - Prepare
       - Build-and-Push
     runs-on: ubuntu-latest
-    permissions: write-all
     if: always() && needs.Prepare.outputs.should_push == 'true'
     steps:
       - name: Checkout
@@ -263,69 +270,6 @@ jobs:
           echo "**Successful Platforms:** \`${JOINED_TAGS}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** \`${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Manifest Tags:** \`latest\`, \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-
-  Delete-Old-Images:
-    name: Delete old Docker images
-    needs:
-      - Prepare
-      - Merge-and-Push
-    runs-on: ubuntu-latest
-    permissions: write-all
-    if: needs.Prepare.outputs.should_push == 'true' && needs.Merge-and-Push.result == 'success'
-    steps:
-      - name: Delete old package versions
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PACKAGE_NAME: ${{ needs.Prepare.outputs.d_image_name }}
-          CURRENT_SHA_TAG: ${{ github.sha }}
-        run: |
-          VERSION_RESPONSE=$(curl -fsSL \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions?per_page=100")
-
-          CURRENT_VERSION_IDS=$(echo "$VERSION_RESPONSE" | jq -r --arg current_sha "$CURRENT_SHA_TAG" '
-            .[]
-            | select(((.metadata.container.tags // []) | index($current_sha)) != null)
-            | .id
-          ')
-
-          if [ -z "$CURRENT_VERSION_IDS" ]; then
-            echo "Current tag ${CURRENT_SHA_TAG} is not visible in the package API yet. Skipping cleanup to avoid deleting the new image."
-            exit 0
-          fi
-
-          DELETE_IDS=$(echo "$VERSION_RESPONSE" | jq -r --arg current_sha "$CURRENT_SHA_TAG" '
-            .[]
-            | select(
-                (((.metadata.container.tags // []) | index($current_sha)) == null) and
-                (((.metadata.container.tags // []) | index("latest")) == null)
-              )
-            | .id
-          ')
-
-          if [ -z "$DELETE_IDS" ]; then
-            echo "No old package versions to delete."
-            exit 0
-          fi
-
-          for version_id in $DELETE_IDS; do
-            VERSION_TAGS=$(echo "$VERSION_RESPONSE" | jq -r --arg version_id "$version_id" '
-              .[]
-              | select((.id | tostring) == $version_id)
-              | ((.metadata.container.tags // []) | join(", "))
-            ')
-
-            if [ -z "$VERSION_TAGS" ]; then
-              VERSION_TAGS="<none>"
-            fi
-
-            echo "Deleting package version ${version_id} (tags: ${VERSION_TAGS})"
-            curl -fsSL -X DELETE \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions/${version_id}"
-          done
 
   Summary-No-Push:
     name: Summary Without Push
