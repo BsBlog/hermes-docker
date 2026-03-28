@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-release:
+  Check-Release:
+    name: Check Release
     runs-on: ubuntu-slim
     permissions:
       contents: write
@@ -94,6 +95,8 @@ jobs:
   Finalize:
     name: Finalize Workflow
     runs-on: ubuntu-slim
+    needs:
+      - Check-Release
     if: always()
     steps:
       - name: Delete old workflow runs

@@ -373,13 +373,13 @@ jobs:
 
   Finalize:
     name: Finalize Workflow
+    runs-on: ubuntu-latest
     needs:
       - Detect-Platforms
       - Collect-Platforms
       - Build-and-Push
       - Delete-Old-Images
       - Summary-No-Push
-    runs-on: ubuntu-latest
     if: always()
     steps:
 
