@@ -80,7 +80,7 @@ RUN mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace \
     && echo 'node ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
     && chmod -R g+w /home/linuxbrew/.linuxbrew
 
-RUN pnpm dlx -y playwright@latest install-deps chromium
+RUN pnpm dlx playwright@latest install-deps chromium
 
 RUN mkdir -p /usr/local/share/ca-certificates && \
     cp /etc/ssl/certs/ca-certificates.crt /usr/local/share/ca-certificates/ca-certificates.crt && \
@@ -94,7 +94,7 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /app/dist/index.js "$@"' > /u
 
 USER node
 
-RUN NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ca-certificates.crt pnpm dlx -y playwright@latest install chromium
+RUN NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ca-certificates.crt pnpm dlx playwright@latest install chromium
 
 WORKDIR /home/node
 
