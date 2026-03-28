@@ -17,7 +17,7 @@ jobs:
       
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: Check for new OpenClaw release
         id: check_release
@@ -63,7 +63,7 @@ jobs:
 
       - name: Trigger build workflow
         if: steps.check_release.outputs.new_release == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@main
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
