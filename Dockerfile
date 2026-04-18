@@ -182,7 +182,7 @@ RUN useradd -u 10000 -m -d /opt/data -s /bin/bash hermes && \
 
 WORKDIR /opt/hermes
 
-RUN pnpm exec playwright install --with-deps chromium --only-shell && \
+RUN pnpx playwright install --with-deps chromium --only-shell && \
     apt-get clean && \
     (apt-get dist-clean || true)
 
