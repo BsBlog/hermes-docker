@@ -7,14 +7,15 @@ FROM tianon/gosu:debian AS gosu_source
 FROM debian:trixie-slim AS base
 
 COPY --from=node_source /usr/local/bin/node /usr/local/bin/
-COPY --from=node_source /usr/local/bin/npm /usr/local/bin/
-COPY --from=node_source /usr/local/bin/npx /usr/local/bin/
 COPY --from=node_source /usr/local/include/node /usr/local/include/node
 COPY --from=node_source /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=python_source /usr/local/bin/python* /usr/local/bin/
 COPY --from=python_source /usr/local/include/python* /usr/local/include/
 COPY --from=python_source /usr/local/lib/libpython* /usr/local/lib/
 COPY --from=python_source /usr/local/lib/python* /usr/local/lib/
+
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 FROM base AS build
 
@@ -112,7 +113,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     ffmpeg \
-    git \
     procps \
     ripgrep \
     sudo \
