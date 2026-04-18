@@ -1,21 +1,53 @@
 FROM node:current-trixie-slim AS node_source
 
+RUN set -eux; \
+    mkdir -p /opt/runtime/node/bin /opt/runtime/node/lib /opt/runtime/node/include /opt/runtime/node/share /opt/runtime/node/opt; \
+    cp -a /usr/local/bin/node /opt/runtime/node/bin/; \
+    cp -a /usr/local/lib/node_modules /opt/runtime/node/lib/; \
+    cp -a /usr/local/include/node /opt/runtime/node/include/; \
+    cp -a /usr/local/share/doc /opt/runtime/node/share/ || true; \
+    cp -a /usr/local/share/man /opt/runtime/node/share/ || true; \
+    cp -a /usr/local/bin/docker-entrypoint.sh /opt/runtime/node/bin/; \
+    yarn_real="$(readlink -f /usr/local/bin/yarn)"; \
+    yarn_root="$(dirname "$(dirname "$yarn_real")")"; \
+    cp -a "$yarn_root" /opt/runtime/node/opt/yarn
+
 FROM ghcr.io/bsblog/python-nogil:latest AS python_source
+
+RUN set -eux; \
+    mkdir -p /opt/runtime/python; \
+    cp -a /usr/local/bin /opt/runtime/python/; \
+    cp -a /usr/local/lib /opt/runtime/python/; \
+    cp -a /usr/local/include /opt/runtime/python/; \
+    cp -a /usr/local/share /opt/runtime/python/
 
 FROM tianon/gosu:debian AS gosu_source
 
 FROM debian:trixie-slim AS base
 
-COPY --from=node_source /usr/local/bin/node /usr/local/bin/
-COPY --from=node_source /usr/local/include/node /usr/local/include/node
-COPY --from=node_source /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=python_source /usr/local/bin/python* /usr/local/bin/
-COPY --from=python_source /usr/local/include/python* /usr/local/include/
-COPY --from=python_source /usr/local/lib/libpython* /usr/local/lib/
-COPY --from=python_source /usr/local/lib/python* /usr/local/lib/
+COPY --from=node_source /opt/runtime/node/bin/node /usr/local/bin/
+COPY --from=node_source /opt/runtime/node/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node_source /opt/runtime/node/include/node /usr/local/include/node
+COPY --from=node_source /opt/runtime/node/bin/docker-entrypoint.sh /usr/local/bin/
+COPY --from=node_source /opt/runtime/node/opt/yarn /opt/yarn
 
-RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
-    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+COPY --from=python_source /opt/runtime/python/bin/python* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/pip* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/idle* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/pydoc* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/include/python* /usr/local/include/
+COPY --from=python_source /opt/runtime/python/lib/libpython* /usr/local/lib/
+COPY --from=python_source /opt/runtime/python/lib/python* /usr/local/lib/
+
+RUN set -eux; \
+    ln -sf /usr/local/bin/node /usr/local/bin/nodejs; \
+    ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm; \
+    ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx; \
+    ln -sf /opt/yarn/bin/yarn /usr/local/bin/yarn; \
+    ln -sf /opt/yarn/bin/yarnpkg /usr/local/bin/yarnpkg; \
+    [ -e /usr/local/bin/python ] || ln -sf /usr/local/bin/python3 /usr/local/bin/python; \
+    [ -e /usr/local/bin/pip ] || ln -sf /usr/local/bin/pip3 /usr/local/bin/pip; \
+    ldconfig
 
 FROM base AS build
 
@@ -75,27 +107,21 @@ RUN set -eux; \
         pnpm import; \
     fi; \
     pnpm install --frozen-lockfile --prefer-offline; \
+    ( cd scripts/whatsapp-bridge && pnpm install --frozen-lockfile --prefer-offline ); \
+    ( cd scripts/whatsapp-bridge && pnpm prune --prod && rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache ); \
+    ( cd /opt/hermes/web && pnpm install --frozen-lockfile --prefer-offline && pnpm run build ); \
     pnpm prune --prod; \
     rm -rf /opt/hermes/node_modules/.cache; \
     apt-get clean; \
     (apt-get dist-clean || true)
-
-RUN set -eux; \
-    cd /opt/hermes/scripts/whatsapp-bridge; \
-    node -e 'const fs = require("fs"); const path = "package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); const existing = pkg.pnpm?.onlyBuiltDependencies ?? []; pkg.pnpm = { ...(pkg.pnpm ?? {}), onlyBuiltDependencies: [...new Set([...existing, "baileys"])] }; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");'; \
-    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
-        pnpm import; \
-    fi; \
-    pnpm install --frozen-lockfile --prefer-offline; \
-    pnpm prune --prod; \
-    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache
 
 RUN chown -R hermes:hermes /opt/hermes
 
 USER hermes
 
 RUN uv venv /opt/hermes/.venv && \
-    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -e ".[all]"
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -e ".[all]" && \
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -e "./tinker-atropos"
 
 FROM base AS runtime
 
