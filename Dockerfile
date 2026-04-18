@@ -112,16 +112,16 @@ RUN set -eux; \
     apt-get clean; \
     (apt-get dist-clean || true)
 
-RUN set -eux; \
-    cd /opt/hermes/scripts/whatsapp-bridge; \
-    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
-        pnpm import; \
-    fi; \
-    pnpm install --frozen-lockfile --prefer-offline; \
-    pnpm prune --prod; \
-    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
-    apt-get clean; \
-    (apt-get dist-clean || true)
+# RUN set -eux; \
+#     cd /opt/hermes/scripts/whatsapp-bridge; \
+#     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
+#         pnpm import; \
+#     fi; \
+#     pnpm install --frozen-lockfile --prefer-offline; \
+#     pnpm prune --prod; \
+#     rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
+#     apt-get clean; \
+#     (apt-get dist-clean || true)
 
 RUN set -eux; \
     cd /opt/hermes/web; \
