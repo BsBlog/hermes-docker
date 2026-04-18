@@ -16,8 +16,6 @@ COPY --from=python_source /usr/local/include/python* /usr/local/include/
 COPY --from=python_source /usr/local/lib/libpython* /usr/local/lib/
 COPY --from=python_source /usr/local/lib/python* /usr/local/lib/
 
-RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
-
 FROM base AS build
 
 ENV CI=true
@@ -36,9 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     ripgrep \
     sudo \
+    libatomic1 \
     && apt-get clean \
     && (apt-get dist-clean || true)
 
+RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
 
@@ -116,9 +116,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     ripgrep \
     sudo \
+    libatomic1 \
     && apt-get clean \
     && (apt-get dist-clean || true)
 
+RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
 COPY --from=build /opt/hermes /opt/hermes
 
