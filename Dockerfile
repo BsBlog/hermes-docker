@@ -82,6 +82,7 @@ RUN set -eux; \
 
 RUN set -eux; \
     cd /opt/hermes/scripts/whatsapp-bridge; \
+    node -e 'const fs = require("fs"); const path = "package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); const existing = pkg.pnpm?.onlyBuiltDependencies ?? []; pkg.pnpm = { ...(pkg.pnpm ?? {}), onlyBuiltDependencies: [...new Set([...existing, "baileys"])] }; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");'; \
     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
         pnpm import; \
     fi; \
