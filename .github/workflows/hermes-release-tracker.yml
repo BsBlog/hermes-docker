@@ -1,15 +1,15 @@
-name: OpenClaw Release Tracker
+name: Hermes Release Tracker
 
 on:
   schedule:
-    # Check for new OpenClaw releases every 6 hours
-    - cron: '0/5 * * * *'
+    # Check for new Hermes releases every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
   Check-Release:
     name: Check Release
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
@@ -19,24 +19,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@main
 
-      - name: Check for new OpenClaw release
+      - name: Check for new Hermes release
         id: check_release
         run: |
-          # Get the latest release from OpenClaw repository
-          LATEST_RELEASE=$(curl -s https://api.github.com/repos/openclaw/openclaw/releases/latest | jq -r '.tag_name // empty')
+          # Get the latest release from Hermes repository
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/NousResearch/hermes-agent/releases/latest | jq -r '.tag_name // empty')
           
           # Get the latest commit from main branch if no releases
           if [ -z "$LATEST_RELEASE" ]; then
-            LATEST_COMMIT=$(curl -s https://api.github.com/repos/openclaw/openclaw/commits/main | jq -r '.sha[:7]')
+            LATEST_COMMIT=$(curl -s https://api.github.com/repos/NousResearch/hermes-agent/commits/main | jq -r '.sha[:7]')
             LATEST_RELEASE="main-${LATEST_COMMIT}"
           fi
           
-          echo "Latest OpenClaw version: ${LATEST_RELEASE}"
+          echo "Latest Hermes version: ${LATEST_RELEASE}"
           echo "latest_version=${LATEST_RELEASE}" >> $GITHUB_OUTPUT
           
           # Check if we've already built this version
-          if [ -f ".last-openclaw-version" ]; then
-            LAST_VERSION=$(cat .last-openclaw-version)
+          if [ -f ".last-hermes-version" ]; then
+            LAST_VERSION=$(cat .last-hermes-version)
             echo "Last built version: ${LAST_VERSION}"
             
             if [ "$LATEST_RELEASE" = "$LAST_VERSION" ]; then
@@ -54,11 +54,11 @@ jobs:
       - name: Update version tracker
         if: steps.check_release.outputs.new_release == 'true'
         run: |
-          echo "${{ steps.check_release.outputs.latest_version }}" > .last-openclaw-version
+          echo "${{ steps.check_release.outputs.latest_version }}" > .last-hermes-version
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .last-openclaw-version
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update OpenClaw version tracker to ${{ steps.check_release.outputs.latest_version }}"
+          git add .last-hermes-version
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update Hermes version tracker to ${{ steps.check_release.outputs.latest_version }}"
           git push
 
       - name: Trigger build workflow
@@ -72,19 +72,19 @@ jobs:
               workflow_id: 'build-image.yml',
               ref: 'main',
               inputs: {
-                openclaw_version: '${{ steps.check_release.outputs.latest_version }}',
+                hermes_version: '${{ steps.check_release.outputs.latest_version }}',
                 push_image: 'true'
               }
             });
             
-            console.log('✅ Triggered build workflow for new OpenClaw release: ${{ steps.check_release.outputs.latest_version }}');
+            console.log('Triggered build workflow for new Hermes release: ${{ steps.check_release.outputs.latest_version }}');
 
       - name: Create summary
         if: always()
         run: |
-          echo "### 🦞 OpenClaw Release Check" >> $GITHUB_STEP_SUMMARY
+          echo "### Hermes Release Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Latest OpenClaw Version:** \`${{ steps.check_release.outputs.latest_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Latest Hermes Version:** \`${{ steps.check_release.outputs.latest_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.check_release.outputs.new_release }}" = "true" ]; then
             echo "✅ **New release detected!** Build workflow triggered." >> $GITHUB_STEP_SUMMARY
@@ -94,7 +94,7 @@ jobs:
 
   Finalize:
     name: Finalize Workflow
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     needs:
       - Check-Release
     if: always()
@@ -104,6 +104,6 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          delete_workflow_pattern: "release-tracker"
+          delete_workflow_pattern: "Hermes Release Tracker"
           retain_days: 0
           keep_minimum_runs: 0

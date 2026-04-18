@@ -3,8 +3,8 @@ name: Build and Push Docker Image
 on:
   workflow_dispatch:
     inputs:
-      openclaw_version:
-        description: 'OpenClaw version to build (branch, tag, or commit SHA)'
+      hermes_version:
+        description: 'Hermes version to build (branch, tag, or commit SHA)'
         required: false
         default: 'main'
         type: string
@@ -22,17 +22,17 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/openclaw-docker
+  IMAGE_NAME: ${{ github.repository_owner }}/hermes-docker
 
 jobs:
   Prepare:
     name: Prepare Environment
     runs-on: ubuntu-latest
     outputs:
-      image_name: ${{ steps.Prepare.outputs.image_name }}
-      d_image_name: ${{ steps.Prepare.outputs.d_image_name }}
-      openclaw_version: ${{ steps.Prepare.outputs.openclaw_version }}
-      should_push: ${{ steps.Prepare.outputs.should_push }}
+      image_name: ${{ steps.prepare.outputs.image_name }}
+      d_image_name: ${{ steps.prepare.outputs.d_image_name }}
+      hermes_version: ${{ steps.prepare.outputs.hermes_version }}
+      should_push: ${{ steps.prepare.outputs.should_push }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@main
@@ -44,12 +44,12 @@ jobs:
           D_IMAGE_NAME=$(echo "$IMAGE_NAME" | cut -d'/' -f2)
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            OPENCLAW_VERSION="${{ inputs.openclaw_version }}"
+            HERMES_VERSION="${{ inputs.hermes_version }}"
           else
-            if [ -f ".last-openclaw-version" ] && [ -s ".last-openclaw-version" ]; then
-              OPENCLAW_VERSION=$(cat .last-openclaw-version)
+            if [ -f ".last-hermes-version" ] && [ -s ".last-hermes-version" ]; then
+              HERMES_VERSION=$(cat .last-hermes-version)
             else
-              OPENCLAW_VERSION=main
+              HERMES_VERSION=main
             fi
           fi
 
@@ -61,7 +61,7 @@ jobs:
 
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "d_image_name=$D_IMAGE_NAME" >> $GITHUB_OUTPUT
-          echo "openclaw_version=$OPENCLAW_VERSION" >> $GITHUB_OUTPUT
+          echo "hermes_version=$HERMES_VERSION" >> $GITHUB_OUTPUT
           echo "should_push=$SHOULD_PUSH" >> $GITHUB_OUTPUT
 
       - name: Delete old Docker images
@@ -71,7 +71,7 @@ jobs:
           curl -X DELETE \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/users/${{github.repository_owner}}/packages/container/${{steps.Prepare.outputs.d_image_name}}
+            https://api.github.com/users/${{github.repository_owner}}/packages/container/${{steps.prepare.outputs.d_image_name}}
 
   Build-and-Push:
     name: Build and Push ${{ matrix.platform }}
@@ -143,7 +143,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}:${{ github.sha }}-${{ matrix.tag_suffix }}
           build-args: |
-            OPENCLAW_VERSION=${{ needs.Prepare.outputs.openclaw_version }}
+            HERMES_VERSION=${{ needs.Prepare.outputs.hermes_version }}
 
       - name: Build without push
         if: needs.Prepare.outputs.should_push != 'true'
@@ -154,7 +154,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: false
           build-args: |
-            OPENCLAW_VERSION=${{ needs.Prepare.outputs.openclaw_version }}
+            HERMES_VERSION=${{ needs.Prepare.outputs.hermes_version }}
 
   Merge-and-Push:
     name: Merge architectures and push latest
@@ -264,9 +264,9 @@ jobs:
             JOINED_TAGS="none"
           fi
 
-          echo "### OpenClaw Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Hermes Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**OpenClaw Version:** \`${{ needs.Prepare.outputs.openclaw_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Hermes Version:** \`${{ needs.Prepare.outputs.hermes_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Successful Platforms:** \`${JOINED_TAGS}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** \`${{ env.REGISTRY }}/${{ needs.Prepare.outputs.image_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Manifest Tags:** \`latest\`, \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
@@ -281,9 +281,9 @@ jobs:
     steps:
       - name: Generate build summary
         run: |
-          echo "### OpenClaw Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Hermes Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**OpenClaw Version:** \`${{ needs.Prepare.outputs.openclaw_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Hermes Version:** \`${{ needs.Prepare.outputs.hermes_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Attempted Platforms:** \`amd64, arm64\`" >> $GITHUB_STEP_SUMMARY
           echo "Manual build completed without pushing images to GHCR." >> $GITHUB_STEP_SUMMARY
 

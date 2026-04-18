@@ -1,33 +1,48 @@
-# OpenClaw Docker Image
+# Hermes Docker Image
 
-Pre-built Docker image for [OpenClaw](https://github.com/openclaw/openclaw). This repository builds a multi-architecture image from the upstream OpenClaw source and publishes it through GitHub Actions.
+Pre-built Docker image for [Hermes Agent](https://github.com/NousResearch/hermes-agent). This repository builds a multi-architecture image from the upstream Hermes source and publishes it through GitHub Actions.
 
 ## Manual Usage
 
 ### Pull the image
 
 ```bash
-docker pull ghcr.io/bsblog/openclaw-docker:latest
+docker pull ghcr.io/bsblog/hermes-docker:latest
 ```
 
 ### Show CLI help
 
 ```bash
-docker run --rm ghcr.io/bsblog/openclaw-docker:latest --help
+docker run --rm ghcr.io/bsblog/hermes-docker:latest --help
 ```
 
-### Start the gateway
+### Check the installed version
+
+```bash
+docker run --rm ghcr.io/bsblog/hermes-docker:latest version
+```
+
+### Start the gateway and API server
 
 ```bash
 docker run -d \
-  --name openclaw-gateway \
+  --name hermes-gateway \
   --restart unless-stopped \
-  -v ~/.openclaw:/home/node/.openclaw \
-  -v ~/.openclaw/workspace:/home/node/.openclaw/workspace \
-  -p 18789:18789 \
-  -p 18790:18790 \
-  -e OPENCLAW_SKIP_SERVICE_CHECK=true \
-  ghcr.io/bsblog/openclaw-docker:latest gateway
+  -v ~/.hermes:/opt/data \
+  -p 8642:8642 \
+  -e API_SERVER_ENABLED=true \
+  -e API_SERVER_HOST=0.0.0.0 \
+  -e API_SERVER_PORT=8642 \
+  -e API_SERVER_KEY=change-me-local-dev \
+  ghcr.io/bsblog/hermes-docker:latest gateway
+```
+
+### Run diagnostics
+
+```bash
+docker run --rm -it \
+  -v ~/.hermes:/opt/data \
+  ghcr.io/bsblog/hermes-docker:latest doctor
 ```
 
 ## Docker Compose
@@ -36,28 +51,35 @@ docker run -d \
 git clone https://github.com/bsblog/openclaw-docker.git
 cd openclaw-docker
 
-docker compose up -d
+docker compose up -d hermes-gateway
+docker compose run --rm hermes-cli --help
 ```
 
-## Paths and Ports
+Compose defaults:
 
-- Host config directory: `~/.openclaw`
-- Host workspace directory: `~/.openclaw/workspace`
-- Compose host config directory: `/opt/openclaw`
-- Compose host workspace directory: `/opt/openclaw/workspace`
-- Container config directory: `/home/node/.openclaw`
-- Container workspace directory: `/home/node/.openclaw/workspace`
-- Gateway/API port: `18789`
-- Dashboard port: `18790`
+- Host data directory: `/opt/hermes`
+- Container data directory: `/opt/data`
+- Container workspace directory: `/opt/data/workspace`
+- API server port: `8642`
+
+Before exposing the API server on a real network, set a strong `API_SERVER_KEY` and narrow `API_SERVER_CORS_ORIGINS` in `/opt/hermes/.env` or via Compose environment variables.
+
+## Container Behavior
+
+- The image keeps a multi-stage build based on `debian:latest-slim`.
+- `hermes` is available both as a command and as a shell alias.
+- The runtime user is `hermes`, and that user has passwordless `sudo`.
+- Node-side package installation uses `pnpm`.
+- Persistent Hermes data lives under `/opt/data`.
 
 ## Build Automation
 
-- The image build workflow accepts `openclaw_version`.
-- The release tracker stores the last built upstream ref in `.last-openclaw-version`.
-- Published manifest tags are `latest` and the Git commit SHA of this repository.
-- GitHub Actions build and publish the `ghcr.io/bsblog/openclaw-docker` image.
+- The image build workflow accepts `hermes_version`.
+- The release tracker stores the last built upstream ref in `.last-hermes-version`.
+- Published manifest tags are `latest` and this repository's Git commit SHA.
+- GitHub Actions build and publish the `ghcr.io/bsblog/hermes-docker` image.
 
 ## Links
 
-- Upstream OpenClaw: https://github.com/openclaw/openclaw
-- This Docker repository: https://github.com/bsblog/openclaw-docker
+- Upstream Hermes Agent: [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
+- This Docker repository: [bsblog/openclaw-docker](https://github.com/bsblog/openclaw-docker)

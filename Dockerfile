@@ -1,105 +1,147 @@
-FROM node:current-trixie-slim AS base
+FROM node:current-trixie-slim AS node_source
 
-RUN npm install -g npm@latest pnpm@latest
+FROM ghcr.io/bsblog/python-nogil:latest AS python_source
+
+FROM tianon/gosu:debian AS gosu_source
+
+FROM debian:trixie-slim AS base
+
+COPY --from=node_source /usr/local/bin/node /usr/local/bin/
+COPY --from=node_source /usr/local/bin/npm /usr/local/bin/
+COPY --from=node_source /usr/local/bin/npx /usr/local/bin/
+COPY --from=node_source /usr/local/bin/corepack /usr/local/bin/
+COPY --from=node_source /usr/local/include/node /usr/local/include/node
+COPY --from=node_source /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=python_source /usr/local/bin/python* /usr/local/bin/
+COPY --from=python_source /usr/local/include/python* /usr/local/include/
+COPY --from=python_source /usr/local/lib/libpython* /usr/local/lib/
+COPY --from=python_source /usr/local/lib/python* /usr/local/lib/
+
+RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 
 FROM base AS build
 
 ENV CI=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+ENV PNPM_HOME=/usr/local/share/pnpm
+ENV PATH="/usr/local/bin:${PNPM_HOME}:/opt/hermes/.venv/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    ca-certificates \
-    unzip \
+    bash \
     build-essential \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    git \
+    libffi-dev \
     procps \
-    file \
+    ripgrep \
     sudo \
-    jq \
-    && apt-get dist-clean
+    && apt-get clean \
+    && (apt-get dist-clean || true)
 
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
 
-RUN groupadd -f linuxbrew && \
-    useradd -m -s /bin/bash -g linuxbrew linuxbrew && \
-    echo 'linuxbrew ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
-    mkdir -p /home/linuxbrew/.linuxbrew && \
-    chown -R linuxbrew:linuxbrew /home/linuxbrew/.linuxbrew
-    
-RUN mkdir -p /home/linuxbrew/.linuxbrew/Homebrew && \
-    git clone --depth 1 https://github.com/Homebrew/brew /home/linuxbrew/.linuxbrew/Homebrew && \
-    mkdir -p /home/linuxbrew/.linuxbrew/bin && \
-    ln -s /home/linuxbrew/.linuxbrew/Homebrew/bin/brew /home/linuxbrew/.linuxbrew/bin/brew && \
-    chown -R linuxbrew:linuxbrew /home/linuxbrew/.linuxbrew && \
-    chmod -R g+rwX /home/linuxbrew/.linuxbrew
+RUN useradd -u 10000 -m -d /opt/data -s /bin/bash hermes
 
-WORKDIR /app
+WORKDIR /opt
 
-ARG OPENCLAW_VERSION=main
-RUN git clone --depth 1 --branch ${OPENCLAW_VERSION} https://github.com/openclaw/openclaw.git . && \
-    echo "Building OpenClaw from branch: ${OPENCLAW_VERSION}" && \
-    git rev-parse HEAD > /app/openclaw-commit.txt
+ARG HERMES_VERSION=main
+RUN set -eux; \
+    HERMES_GIT_REF="${HERMES_VERSION}"; \
+    EXPECTED_SHORT_SHA=""; \
+    if printf '%s' "${HERMES_VERSION}" | grep -Eq '^main-[0-9a-f]{7,}$'; then \
+        HERMES_GIT_REF="main"; \
+        EXPECTED_SHORT_SHA="${HERMES_VERSION#main-}"; \
+        git clone --depth 1 --branch "${HERMES_GIT_REF}" --recurse-submodules https://github.com/NousResearch/hermes-agent.git /opt/hermes; \
+    elif printf '%s' "${HERMES_VERSION}" | grep -Eq '^[0-9a-f]{7,40}$'; then \
+        git clone --recurse-submodules https://github.com/NousResearch/hermes-agent.git /opt/hermes; \
+        git -C /opt/hermes checkout "${HERMES_VERSION}"; \
+        git -C /opt/hermes submodule update --init --recursive; \
+    else \
+        git clone --depth 1 --branch "${HERMES_GIT_REF}" --recurse-submodules https://github.com/NousResearch/hermes-agent.git /opt/hermes; \
+    fi; \
+    if [ -n "${EXPECTED_SHORT_SHA}" ]; then \
+        ACTUAL_SHORT_SHA="$(git -C /opt/hermes rev-parse --short=7 HEAD)"; \
+        test "${ACTUAL_SHORT_SHA}" = "${EXPECTED_SHORT_SHA}"; \
+    fi; \
+    git -C /opt/hermes rev-parse HEAD > /opt/hermes/hermes-commit.txt
 
-RUN pnpm install --frozen-lockfile
-RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
-RUN npm_config_script_shell=bash pnpm ui:install
-RUN npm_config_script_shell=bash pnpm ui:build
+WORKDIR /opt/hermes
 
-RUN pnpm prune --prod \
-    && rm -rf .git node_modules/.cache
+RUN set -eux; \
+    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
+        pnpm import; \
+    fi; \
+    pnpm install --frozen-lockfile --prefer-offline; \
+    pnpm prune --prod; \
+    rm -rf /opt/hermes/node_modules/.cache; \
+    apt-get clean; \
+    (apt-get dist-clean || true)
+
+RUN set -eux; \
+    cd /opt/hermes/scripts/whatsapp-bridge; \
+    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
+        pnpm import; \
+    fi; \
+    pnpm install --frozen-lockfile --prefer-offline; \
+    pnpm prune --prod; \
+    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache
+
+RUN chown -R hermes:hermes /opt/hermes
+
+USER hermes
+
+RUN uv venv /opt/hermes/.venv && \
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -e ".[all]"
 
 FROM base AS runtime
 
-LABEL org.opencontainers.image.source="https://github.com/BsBlog/openclaw-docker"
-LABEL org.opencontainers.image.description="Pre-built OpenClaw (Clawbot) Docker image"
+LABEL org.opencontainers.image.source="https://github.com/BsBlog/hermes-docker"
+LABEL org.opencontainers.image.title="hermes-docker"
+LABEL org.opencontainers.image.description="Pre-built Hermes Agent Docker image"
 LABEL org.opencontainers.image.licenses="MIT"
+
+ENV HERMES_HOME=/opt/data
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+ENV PNPM_HOME=/usr/local/share/pnpm
+ENV PATH="/usr/local/bin:/opt/hermes/.venv/bin:${PNPM_HOME}:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
     curl \
+    ffmpeg \
     git \
+    procps \
+    ripgrep \
     sudo \
-    && apt-get dist-clean
+    && apt-get clean \
+    && (apt-get dist-clean || true)
 
-RUN groupadd -f linuxbrew \
-    && useradd -m -s /bin/bash -g linuxbrew linuxbrew \
-    && echo 'linuxbrew ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
+COPY --from=build /opt/hermes /opt/hermes
 
-COPY --chown=linuxbrew:linuxbrew --from=build /home/linuxbrew/.linuxbrew/ /home/linuxbrew/.linuxbrew/
+RUN useradd -u 10000 -m -d /opt/data -s /bin/bash hermes && \
+    echo 'hermes ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    chmod +x /opt/hermes/docker/entrypoint.sh && \
+    mkdir -p /opt/data && \
+    printf '%s\n' '#!/usr/bin/env bash' 'exec /opt/hermes/.venv/bin/hermes "$@"' > /usr/local/bin/hermes && \
+    chmod +x /usr/local/bin/hermes && \
+    printf "%s\n" "alias hermes='/opt/hermes/.venv/bin/hermes'" > /etc/profile.d/hermes.sh && \
+    chmod 0644 /etc/profile.d/hermes.sh && \
+    printf "%s\n" "alias hermes='/opt/hermes/.venv/bin/hermes'" >> /etc/bash.bashrc
 
-WORKDIR /app
+WORKDIR /opt/hermes
 
-COPY --chown=node:node --from=build /app/ /app/
+RUN pnpm exec playwright install --with-deps chromium --only-shell && \
+    apt-get clean && \
+    (apt-get dist-clean || true)
 
-RUN mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace \
-    && chown -R node:node /home/node \
-    && chmod -R 755 /home/node/.openclaw \
-    && usermod -aG linuxbrew node \
-    && echo 'node ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
-    && chmod -R g+w /home/linuxbrew/.linuxbrew
+VOLUME ["/opt/data"]
 
-RUN pnpm dlx playwright@latest install-deps chromium
+WORKDIR /opt/data
 
-RUN mkdir -p /usr/local/share/ca-certificates && \
-    cp /etc/ssl/certs/ca-certificates.crt /usr/local/share/ca-certificates/ca-certificates.crt && \
-    chmod 755 /usr/local/share/ca-certificates && \
-    chmod 644 /usr/local/share/ca-certificates/ca-certificates.crt
-
-RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /app/dist/index.js "$@"' > /usr/local/bin/openclaw && \
-    chmod +x /usr/local/bin/openclaw && \
-    printf "%s\n" "alias openclaw='node /app/dist/index.js'" >> /etc/bash.bashrc && \
-    printf "%s\n" "alias openclaw='node /app/dist/index.js'" >> /home/node/.bashrc
-
-USER node
-
-RUN NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ca-certificates.crt pnpm dlx playwright@latest install chromium
-
-WORKDIR /home/node
-
-ENV NODE_ENV=production
-ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/node_modules/.bin:${PATH}"
-
-ENTRYPOINT ["openclaw"]
+ENTRYPOINT ["/opt/hermes/docker/entrypoint.sh"]
 CMD ["--help"]

@@ -1,42 +1,36 @@
 services:
-  openclaw-gateway:
-    image: ghcr.io/bsblog/openclaw-docker:latest
-    container_name: openclaw-gateway
+  hermes-gateway:
+    image: ghcr.io/bsblog/hermes-docker:latest
+    container_name: hermes-gateway
     restart: unless-stopped
     stdin_open: true
     tty: true
     # Uncomment the following line if running on Synology NAS or other systems with UID/GID issues
     # user: "1000:1000"
     volumes:
-      - /opt/openclaw:/home/node/.openclaw
-      - /opt/openclaw/workspace:/home/node/.openclaw/workspace
+      - /opt/hermes:/opt/data
     ports:
-      - "18789:18789"
-      - "18790:18790"
+      - "8642:8642"
     environment:
-      - NODE_ENV=production
-      - OPENCLAW_SKIP_SERVICE_CHECK=true
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${API_SERVER_KEY:-change-me-local-dev}
     command: ["gateway"]
-  
-  socat-proxy:
-    image: alpine/socat
-    container_name: openclaw-socat
-    restart: unless-stopped
-    network_mode: "service:openclaw-gateway"
-    command: "TCP-LISTEN:18790,fork,bind=0.0.0.0,reuseaddr TCP:127.0.0.1:18789"
 
-  openclaw-cli:
-    image: ghcr.io/bsblog/openclaw-docker:latest
-    container_name: openclaw-cli
+  hermes-cli:
+    image: ghcr.io/bsblog/hermes-docker:latest
+    container_name: hermes-cli
     stdin_open: true
     tty: true
     # Uncomment the following line if running on Synology NAS or other systems with UID/GID issues
     # user: "1000:1000"
     volumes:
-      - /opt/openclaw:/home/node/.openclaw
-      - /opt/openclaw/workspace:/home/node/.openclaw/workspace
+      - /opt/hermes:/opt/data
     environment:
-      - NODE_ENV=production
-    entrypoint: ["openclaw"]
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${API_SERVER_KEY:-change-me-local-dev}
     profiles:
       - cli
