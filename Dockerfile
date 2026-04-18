@@ -9,7 +9,6 @@ FROM debian:trixie-slim AS base
 COPY --from=node_source /usr/local/bin/node /usr/local/bin/
 COPY --from=node_source /usr/local/bin/npm /usr/local/bin/
 COPY --from=node_source /usr/local/bin/npx /usr/local/bin/
-COPY --from=node_source /usr/local/bin/corepack /usr/local/bin/
 COPY --from=node_source /usr/local/include/node /usr/local/include/node
 COPY --from=node_source /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=python_source /usr/local/bin/python* /usr/local/bin/
