@@ -119,7 +119,7 @@ RUN set -eux; \
     fi; \
     pnpm install --frozen-lockfile --prefer-offline; \
     pnpm prune --prod; \
-    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache
+    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
     apt-get clean; \
     (apt-get dist-clean || true)
 
