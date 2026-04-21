@@ -45,6 +45,7 @@ RUN set -eux; \
     [ -e /usr/local/bin/python ] || ln -sf /usr/local/bin/python3 /usr/local/bin/python; \
     [ -e /usr/local/bin/pip ] || ln -sf /usr/local/bin/pip3 /usr/local/bin/pip; \
     ldconfig
+ENV PYTHONHOME=/usr/local/bin
 
 FROM base AS build
 
