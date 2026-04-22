@@ -121,12 +121,7 @@ RUN set -eux; \
     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
         pnpm import; \
     fi; \
-    only_built_deps="$(pnpm config get --location project --json onlyBuiltDependencies || true)"; \
-    if [ -z "${only_built_deps}" ] || [ "${only_built_deps}" = "undefined" ] || [ "${only_built_deps}" = "null" ]; then \
-        only_built_deps='[]'; \
-    fi; \
-    merged_only_built_deps="$(node -e 'const current = JSON.parse(process.argv[1]); const merged = [...new Set([...(Array.isArray(current) ? current : []), "baileys"])]; process.stdout.write(JSON.stringify(merged));' "${only_built_deps}")"; \
-    pnpm config set --location project --json onlyBuiltDependencies "${merged_only_built_deps}"; \
+    pnpm config set --global dangerouslyAllowAllBuilds true
     pnpm install --frozen-lockfile --prefer-offline; \
     pnpm prune --prod; \
     rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
