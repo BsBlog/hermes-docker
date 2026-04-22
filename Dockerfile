@@ -40,19 +40,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     netbase \
     tzdata \
-    libbluetooth3 \
-    libbz2-1.0 \
-    libffi8 \
-    libgdbm6t64 \
-    libgdbm-compat4t64 \
-    liblzma5 \
-    libncursesw6 \
-    libreadline8 \
-    libsqlite3-0 \
-    libssl3t64 \
-    libuuid1 \
-    libzstd1 \
-    zlib1g \
     libatomic1 \
     && apt-get clean \
     && (apt-get dist-clean || true)
@@ -78,7 +65,6 @@ ENV PATH="/usr/local/bin:${PNPM_HOME}:/opt/hermes/.venv/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
-    ca-certificates \
     curl \
     ffmpeg \
     git \
@@ -130,16 +116,16 @@ RUN set -eux; \
     apt-get clean; \
     (apt-get dist-clean || true)
 
-# RUN set -eux; \
-#     cd /opt/hermes/scripts/whatsapp-bridge; \
-#     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
-#         pnpm import; \
-#     fi; \
-#     pnpm install --frozen-lockfile --prefer-offline; \
-#     pnpm prune --prod; \
-#     rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
-#     apt-get clean; \
-#     (apt-get dist-clean || true)
+RUN set -eux; \
+    cd /opt/hermes/scripts/whatsapp-bridge; \
+    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
+        pnpm import; \
+    fi; \
+    pnpm install --frozen-lockfile --prefer-offline; \
+    pnpm prune --prod; \
+    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
+    apt-get clean; \
+    (apt-get dist-clean || true)
 
 RUN set -eux; \
     cd /opt/hermes/web; \
@@ -174,7 +160,6 @@ ENV PATH="/usr/local/bin:/opt/hermes/.venv/bin:${PNPM_HOME}:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
-    ca-certificates \
     curl \
     ffmpeg \
     procps \
