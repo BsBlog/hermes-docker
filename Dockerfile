@@ -12,7 +12,7 @@ RUN set -eux; \
     yarn_root="$(dirname "$(dirname "$yarn_real")")"; \
     cp -a "$yarn_root" /opt/runtime/node/opt/yarn
 
-FROM ghcr.io/bsblog/python-nogil:latest AS python_source
+FROM python:slim-trixie AS python_source
 
 RUN set -eux; \
     mkdir -p /opt/runtime/python; \
@@ -79,14 +79,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
     ca-certificates \
-    cargo \
     curl \
     ffmpeg \
     git \
     libffi-dev \
     procps \
     ripgrep \
-    rustc \
     sudo \
     libatomic1 \
     && apt-get clean \
@@ -159,7 +157,6 @@ RUN chown -R hermes:hermes /opt/hermes
 USER hermes
 
 RUN uv venv /opt/hermes/.venv && \
-    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir setuptools wheel && \
     uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir --no-build-isolation-package hermes-agent ".[all]" && \
     uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir --no-build-isolation "./tinker-atropos"
 
