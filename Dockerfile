@@ -36,6 +36,27 @@ COPY --from=python_source /opt/runtime/python/include/ /usr/local/include/
 COPY --from=python_source /opt/runtime/python/lib/ /usr/local/lib/
 COPY --from=python_source /opt/runtime/python/share/ /usr/local/share/
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    netbase \
+    tzdata \
+    libbluetooth3 \
+    libbz2-1.0 \
+    libffi8 \
+    libgdbm6t64 \
+    libgdbm-compat4t64 \
+    liblzma5 \
+    libncursesw6 \
+    libreadline8 \
+    libsqlite3-0 \
+    libssl3t64 \
+    libuuid1 \
+    libzstd1 \
+    zlib1g \
+    libatomic1 \
+    && apt-get clean \
+    && (apt-get dist-clean || true)
+
 RUN set -eux; \
     ln -sf /usr/local/bin/node /usr/local/bin/nodejs; \
     ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm; \
@@ -45,7 +66,7 @@ RUN set -eux; \
     [ -e /usr/local/bin/python ] || ln -sf /usr/local/bin/python3 /usr/local/bin/python; \
     [ -e /usr/local/bin/pip ] || ln -sf /usr/local/bin/pip3 /usr/local/bin/pip; \
     ldconfig
-ENV PYTHONHOME=/usr/local/bin
+RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 
 FROM base AS build
 
@@ -69,7 +90,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && (apt-get dist-clean || true)
 
-RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
 
@@ -165,7 +185,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && (apt-get dist-clean || true)
 
-RUN npm install -g npm@latest pnpm@latest && npm cache clean --force
 COPY --from=gosu_source /usr/local/bin/gosu /usr/local/bin/gosu
 COPY --from=build /opt/hermes /opt/hermes
 
