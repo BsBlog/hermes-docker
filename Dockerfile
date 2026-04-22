@@ -121,7 +121,7 @@ RUN set -eux; \
     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
         pnpm import; \
     fi; \
-    pnpm config set --global dangerouslyAllowAllBuilds true
+    pnpm config set --global dangerouslyAllowAllBuilds true; \
     pnpm install --frozen-lockfile --prefer-offline; \
     pnpm prune --prod; \
     rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
