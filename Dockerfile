@@ -158,7 +158,7 @@ USER hermes
 
 RUN uv venv /opt/hermes/.venv && \
     uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir --no-build-isolation-package hermes-agent ".[all]" && \
-    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir --no-build-isolation "./tinker-atropos"
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir "./tinker-atropos"
 
 FROM base AS runtime
 
