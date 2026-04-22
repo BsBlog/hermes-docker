@@ -79,12 +79,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
     ca-certificates \
+    cargo \
     curl \
     ffmpeg \
     git \
     libffi-dev \
     procps \
     ripgrep \
+    rustc \
     sudo \
     libatomic1 \
     && apt-get clean \
@@ -181,7 +183,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     ripgrep \
     sudo \
-    libatomic1 \
     && apt-get clean \
     && (apt-get dist-clean || true)
 
