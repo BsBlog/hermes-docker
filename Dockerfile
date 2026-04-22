@@ -31,10 +31,13 @@ COPY --from=node_source /opt/runtime/node/include/node /usr/local/include/node
 COPY --from=node_source /opt/runtime/node/bin/docker-entrypoint.sh /usr/local/bin/
 COPY --from=node_source /opt/runtime/node/opt/yarn /opt/yarn
 
-COPY --from=python_source /opt/runtime/python/bin/ /usr/local/bin/
-COPY --from=python_source /opt/runtime/python/include/ /usr/local/include/
-COPY --from=python_source /opt/runtime/python/lib/ /usr/local/lib/
-COPY --from=python_source /opt/runtime/python/share/ /usr/local/share/
+COPY --from=python_source /opt/runtime/python/bin/python* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/pip* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/idle* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/bin/pydoc* /usr/local/bin/
+COPY --from=python_source /opt/runtime/python/include/python* /usr/local/include/
+COPY --from=python_source /opt/runtime/python/lib/libpython* /usr/local/lib/
+COPY --from=python_source /opt/runtime/python/lib/python* /usr/local/lib/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -116,17 +119,16 @@ RUN set -eux; \
     apt-get clean; \
     (apt-get dist-clean || true)
 
-RUN set -eux; \
-    cd /opt/hermes/scripts/whatsapp-bridge; \
-    if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
-        pnpm import; \
-    fi; \
-    pnpm config set --global dangerouslyAllowAllBuilds true; \
-    pnpm install --frozen-lockfile --prefer-offline; \
-    pnpm prune --prod; \
-    rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
-    apt-get clean; \
-    (apt-get dist-clean || true)
+# RUN set -eux; \
+#     cd /opt/hermes/scripts/whatsapp-bridge; \
+#     if [ -f package-lock.json ] && [ ! -f pnpm-lock.yaml ]; then \
+#         pnpm import; \
+#     fi; \
+#     pnpm install --frozen-lockfile --prefer-offline; \
+#     pnpm prune --prod; \
+#     rm -rf /opt/hermes/scripts/whatsapp-bridge/node_modules/.cache; \
+#     apt-get clean; \
+#     (apt-get dist-clean || true)
 
 RUN set -eux; \
     cd /opt/hermes/web; \
