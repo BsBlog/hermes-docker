@@ -2,7 +2,6 @@ name: Hermes Release Tracker
 
 on:
   schedule:
-    # Check for new Hermes releases every 6 hours
     - cron: '0/5 * * * *'
   workflow_dispatch:
 
@@ -10,10 +9,6 @@ jobs:
   Check-Release:
     name: Check Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      actions: write
       
     steps:
       - name: Checkout repository
