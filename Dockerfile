@@ -145,8 +145,8 @@ RUN chown -R hermes:hermes /opt/hermes
 
 USER hermes
 
-RUN uv venv /opt/hermes/.venv && \
-    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir --no-build-isolation-package hermes-agent ".[all]" && \
+RUN uv venv --no-python-downloads /opt/hermes/.venv && \
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir hermes-agent ".[all]" && \
     uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir "./tinker-atropos"
 
 FROM base AS runtime
